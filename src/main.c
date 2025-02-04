@@ -1,9 +1,9 @@
 //
 // HECTO
-// A minimalistic text editor for UNIX OS
+// A minimalistic text editor for Linux
 //
 // Made by Szymon Oleśkiewicz
-// Based on the editor in tutorial from:
+// Based on the kilo editor from:
 // https://viewsourcecode.org/snaptoken/kilo/
 //
 
