@@ -162,18 +162,37 @@ void editorUpdateSyntax(erow *row) {
 		editorUpdateSyntax(&E.row[row->idx + 1]);
 }
 
-int editorSyntaxToColor(int hl) {
+void editorSyntaxToColor(int hl, int *color_fg, int *color_bg, int* effect) {
+	*effect = -1; 
+	*color_bg = -1;
 	switch (hl) {
-		case HL_NUMBER: return 31;
-		case HL_KEYWORD2: return 32;
-		case HL_KEYWORD1: return 33;
+		case HL_NUMBER:
+			*color_fg = 31;
+			break;
+		case HL_KEYWORD2: 
+			*color_fg = 32;
+			break;
+		case HL_KEYWORD1: 
+			*color_fg = 33;
+			break;
 		case HL_CUSTOM: 
-		case HL_MATCH: return 34;
-		case HL_STRING: return 35;
+			*color_fg = 34;
+			break;
+		case HL_MATCH: 
+			*color_fg = 30;
+			*color_bg = 47;
+			*effect = 5;
+			break;
+		case HL_STRING: 
+			*color_fg = 35;
+			break;
 		case HL_MLCOMMENT:
-		case HL_COMMENT: return 36;
+		case HL_COMMENT: 
+			*color_fg = 36;
+			break;
 		
-		default: return 37;
+		default: 
+			*color_fg = 37;
 	}
 }
 
@@ -635,7 +654,6 @@ void editorDrawRows(struct abuf *ab) {
 			}
 			
 		} else {
-			/* WIP
 			if (E.show_numline) {
 				char buf[8];
 				snprintf(buf, sizeof(buf), "%4d | ", filerow);
@@ -644,7 +662,7 @@ void editorDrawRows(struct abuf *ab) {
 				abAppend(ab, "\x1b[m", 3);
 				
 			}
-			*/
+			
 			
 			// Drawing file lines
 			int len = E.row[filerow].rsize - E.coloff;
@@ -652,7 +670,9 @@ void editorDrawRows(struct abuf *ab) {
 			if (len > E.screencols) len = E.screencols;
 			char *c = &E.row[filerow].render[E.coloff];
 			unsigned char *hl = &E.row[filerow].hl[E.coloff];
-			int current_color = -1;
+			int current_bg_color = -1;
+			int current_fg_color = -1;
+			int current_effect = -1;
 			int j;
 			
 			// Drawing individual characters of the row
@@ -664,34 +684,50 @@ void editorDrawRows(struct abuf *ab) {
 					abAppend(ab, "\x1b[7m", 4);
 					abAppend(ab, &sym, 1);
 					abAppend(ab, "\x1b[m", 3);
-					if (current_color != -1) {
+					if (current_bg_color != -1 || current_effect != -1) {
+						abAppend(ab, "\x1b[m", 3);
+						current_bg_color = -1;
+						current_effect = -1;
+					}
+					if (current_fg_color != -1) {
 						char buf[16];
-						int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", current_color);
+						int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", current_fg_color);
 						abAppend(ab, buf, clen);
 					}
 				
 				// Normal characters
 				} else if (hl[j] == HL_NORMAL) {
-					if (current_color != -1) {
+					if (current_bg_color != -1 || current_effect != -1) {
+						abAppend(ab, "\x1b[m", 3);
+						current_bg_color = -1;
+						current_effect = -1;
+					}
+					if (current_fg_color != -1) {
 						abAppend(ab, "\x1b[39m", 5);
-						current_color = -1;
+						current_fg_color = -1;
 					}
 					abAppend(ab, &c[j], 1);
 					
 				// Syntax highlighing
 				} else {
 					
-					int color = editorSyntaxToColor(hl[j]);
-					if (color != current_color) {
-						current_color = color;
-						char buf[16];
-						int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+					int color_fg, color_bg, effect;
+					editorSyntaxToColor(hl[j], &color_fg, &color_bg, &effect);
+					if (color_fg != current_fg_color || effect != current_effect || color_bg != current_bg_color) {
+						current_fg_color = color_fg;
+						current_bg_color = color_bg;
+						current_effect = effect;
+						char buf[32];
+						int clen = snprintf(buf, sizeof(buf), "\x1b[m\x1b[");
+						if (effect > 0) clen += snprintf((buf + clen), sizeof(buf) - clen, "%d;", effect);
+						if (color_bg > 0) clen += snprintf((buf + clen), sizeof(buf) - clen, "%d;" , color_bg);
+						clen += snprintf((buf + clen), sizeof(buf) - clen, "%dm" , color_fg);
 						abAppend(ab, buf, clen);
 					}
 					abAppend(ab, &c[j], 1);
 				}
 			}
-			abAppend(ab, "\x1b[39m", 5);
+			abAppend(ab, "\x1b[m", 5);
 		}
 		
 		// Move cursor to the upper-left corner and append new line
